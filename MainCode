@@ -30,6 +30,7 @@ data segment
     msg16    db "Remaining Battery Level: $"
     msg17    db " Units", 13, 10, "$"
     msg18    db 13, 10, "$"
+    msgerr   db "Invalid input! Use only U,D,L,R. Try again.", 13, 10, "$"
 ends
 
 stack segment
@@ -41,42 +42,42 @@ start:
     mov ax, data
     mov ds, ax
 
-    call clrscr
+    call wipe
     lea dx, msg1
-    call printmsg
+    call display
 
     lea dx, msg2
-    call printmsg
+    call display
     lea si, uniid
-    call readid
+    call getid
 
     lea dx, msg3
-    call printmsg
+    call display
     lea si, uniid2
-    call readid
+    call getid
 
     lea si, uniid
     add si, 7
     lea di, col
-    call obst
+    call placemark
     lea si, uniid
     add si, 6
     lea di, row
-    call obst
+    call placemark
     lea si, uniid2
     add si, 7
     lea di, col
     add di, 3
-    call obst
+    call placemark
     lea si, uniid2
     add si, 6
     lea di, row
     add di, 3
-    call obst
+    call placemark
 
     mov cx, 6
     xor bx, bx
-gen_craters:
+gencraters:
     push cx
     push bx
     lea si, row
@@ -96,96 +97,105 @@ gen_craters:
     pop bx
     inc bx
     pop cx
-    loop gen_craters
+    loop gencraters
 
     lea bx, grid
-find_r:
+findr:
     cmp [bx], 'O'
     je shift
     mov [bx], 'R'
     mov rrow, 0
     mov al, 0
     mov rcol, al
-    jmp init_done
+    jmp initdone
 shift:
     inc bx
-    jmp find_r
+    jmp findr
 
-init_done:
-    call clrscr
+initdone:
+    call wipe
     lea dx, msg1
-    call printmsg
+    call display
     lea dx, msg18
-    call printmsg
-    call dispgri
+    call display
+    call drawmap
     lea dx, msg4
-    call printmsg
+    call display
     lea dx, msg5
-    call printmsg
+    call display
 
-get_input:
+getinput:
     lea dx, msg6
-    call printmsg
+    call display
     xor bx, bx
-read_seq:
+readseq:
     mov ah, 01h
     int 21h
     cmp al, 'U'
-    je seq_ok
+    je seqok
     cmp al, 'u'
-    je seq_ok
+    je seqok
     cmp al, 'D'
-    je seq_ok
+    je seqok
     cmp al, 'd'
-    je seq_ok
+    je seqok
     cmp al, 'L'
-    je seq_ok
+    je seqok
     cmp al, 'l'
-    je seq_ok
+    je seqok
     cmp al, 'R'
-    je seq_ok
+    je seqok
     cmp al, 'r'
-    je seq_ok
-    jmp seq_stop
-seq_ok:
+    je seqok
+    jmp seqstop
+seqok:
     lea si, seqbuf
     mov [si+bx], al
     inc bx
     cmp bx, 20
-    jl read_seq
-seq_stop:
+    jl readseq
+seqstop:
+    cmp al, 0Dh
+    je seqend
+    xor bx, bx
+    mov seqlen, 0
+    lea dx, msg18
+    call display
+    lea dx, msgerr
+    call display
+    jmp getinput
+seqend:
     mov seqlen, bl
     lea dx, msg18
-    call printmsg
+    call display
     cmp bl, 0
-    je get_input
-
-    call showscreen
-
+    je getinput
+    call refresh
     xor bx, bx
-exec_loop:
+
+execloop:
     cmp bl, seqlen
-    je seq_done
+    je seqdone
 
     lea si, seqbuf
     mov al, [si+bx]
     push bx
 
     cmp al, 'U'
-    je do_up
+    je doup
     cmp al, 'u'
-    je do_up
+    je doup
     cmp al, 'D'
-    je do_down
+    je dodown
     cmp al, 'd'
-    je do_down
+    je dodown
     cmp al, 'L'
-    je do_left
+    je doleft
     cmp al, 'l'
-    je do_left
-    jmp do_right
+    je doleft
+    jmp doright
 
-do_up:
+doup:
     mov al, rrow
     cmp al, 0
     je boundary
@@ -193,9 +203,9 @@ do_up:
     mov nrow, al
     mov al, rcol
     mov ncol, al
-    jmp check_move
+    jmp checkmove
 
-do_down:
+dodown:
     mov al, rrow
     cmp al, 7
     je boundary
@@ -203,9 +213,9 @@ do_down:
     mov nrow, al
     mov al, rcol
     mov ncol, al
-    jmp check_move
+    jmp checkmove
 
-do_left:
+doleft:
     mov al, rrow
     mov nrow, al
     mov al, rcol
@@ -213,9 +223,9 @@ do_left:
     je boundary
     dec al
     mov ncol, al
-    jmp check_move
+    jmp checkmove
 
-do_right:
+doright:
     mov al, rrow
     mov nrow, al
     mov al, rcol
@@ -224,7 +234,7 @@ do_right:
     inc al
     mov ncol, al
 
-check_move:
+checkmove:
     mov al, nrow
     mov bl, ncol
     xor ah, ah
@@ -269,22 +279,22 @@ check_move:
     dec fuel
     inc fuelused
 
-    call delay
-    call showscreen
+    call pause
+    call refresh
 
     pop bx
     inc bx
-    jmp exec_loop
+    jmp execloop
 
 boundary:
     pop bx
-    call clrscr
+    call wipe
     lea dx, msg1
-    call printmsg
-    call dispgri
+    call display
+    call drawmap
     lea dx, msg8
-    call printmsg
-    jmp exit_prog
+    call display
+    jmp exitprog
 
 collision:
     mov al, nrow
@@ -303,101 +313,101 @@ collision:
     add si, bx
     mov [si], 'X'
     pop bx
-    call clrscr
+    call wipe
     lea dx, msg1
-    call printmsg
-    call dispgri
+    call display
+    call drawmap
     mov dl, 07h
     mov ah, 02h
     int 21h
     lea dx, msg9
-    call printmsg
+    call display
     lea dx, msg10
-    call printmsg
-    call printcoord
+    call display
+    call showpos
     lea dx, msg18
-    call printmsg
+    call display
     lea dx, msg11
-    call printmsg
-    jmp exit_prog
+    call display
+    jmp exitprog
 
-seq_done:
-    call clrscr
+seqdone:
+    call wipe
     lea dx, msg1
-    call printmsg
-    call dispgri
+    call display
+    call drawmap
     lea dx, msg13
-    call printmsg
+    call display
     lea dx, msg14
-    call printmsg
-    call printcoord
+    call display
+    call showpos
     lea dx, msg18
-    call printmsg
+    call display
     lea dx, msg15
-    call printmsg
+    call display
     mov al, fuelused
-    call printnum
+    call numout
     lea dx, msg18
-    call printmsg
+    call display
     lea dx, msg16
-    call printmsg
+    call display
     mov al, fuel
-    call printnum
+    call numout
     lea dx, msg17
-    call printmsg
+    call display
 
-exit_prog:
+exitprog:
     lea dx, msg12
-    call printmsg
+    call display
     mov ax, 4c00h
     int 21h
 
-printmsg proc
+display proc
     mov ah, 09h
     int 21h
     ret
-printmsg endp
+display endp
 
-readid proc
+getid proc
     mov cx, 8
-ridloop:
+idloop:
     mov ah, 01h
     int 21h
     mov [si], al
     inc si
-    loop ridloop
+    loop idloop
     lea dx, msg18
-    call printmsg
+    call display
     ret
-readid endp
+getid endp
 
-printcoord proc
+showpos proc
     mov al, rrow
-    call printnum
+    call numout
     mov dl, ','
     mov ah, 02h
     int 21h
     mov al, rcol
-    call printnum
+    call numout
     mov dl, ')'
     mov ah, 02h
     int 21h
     ret
-printcoord endp
+showpos endp
 
-showscreen proc
-    call clrscr
+refresh proc
+    call wipe
     lea dx, msg1
-    call printmsg
+    call display
     lea dx, msg18
-    call printmsg
+    call display
     lea dx, msg7
-    call printmsg
+    call display
     push bx
     xor bx, bx
-showloop:
+printloop:
     cmp bl, seqlen
-    je showdone
+    je printdone
     lea si, seqbuf
     mov dl, [si+bx]
     mov ah, 02h
@@ -405,38 +415,38 @@ showloop:
     mov dl, ' '
     int 21h
     inc bx
-    jmp showloop
-showdone:
+    jmp printloop
+printdone:
     pop bx
     lea dx, msg18
-    call printmsg
+    call display
     lea dx, msg18
-    call printmsg
-    call dispgri
+    call display
+    call drawmap
     ret
-showscreen endp
+refresh endp
 
-printnum proc
+numout proc
     xor ah, ah
     mov bl, 10
     div bl
     cmp al, 0
-    je skip_tens
+    je skiptens
     push ax
     mov dl, al
     add dl, 30h
     mov ah, 02h
     int 21h
     pop ax
-skip_tens:
+skiptens:
     mov dl, ah
     add dl, 30h
     mov ah, 02h
     int 21h
     ret
-printnum endp
+numout endp
 
-clrscr proc
+wipe proc
     mov ax, 0600h
     mov bh, 07h
     mov cx, 0000h
@@ -447,9 +457,9 @@ clrscr proc
     mov dx, 0000h
     int 10h
     ret
-clrscr endp
+wipe endp
 
-delay proc
+pause proc
     mov cx, 0020h
 dly:
     nop
@@ -457,9 +467,9 @@ dly:
     nop
     loop dly
     ret
-delay endp
+pause endp
 
-obst proc
+placemark proc
     mov cx, 3
 l1:
     mov al, [si]
@@ -472,16 +482,16 @@ l1:
     add di, 1
     loop l1
     ret
-obst endp
+placemark endp
 
-dispgri proc
+drawmap proc
     mov dl, ' '
     mov ah, 02h
     int 21h
     mov dl, ' '
     int 21h
     mov bx, 0
-print_col:
+printcol:
     mov dl, bl
     add dl, 30h
     mov ah, 02h
@@ -490,7 +500,7 @@ print_col:
     int 21h
     inc bx
     cmp bx, 8
-    jl print_col
+    jl printcol
     mov dl, 13
     mov ah, 02h
     int 21h
@@ -523,7 +533,7 @@ lo2:
     cmp bx, 8
     jl lo1
     ret
-dispgri endp
+drawmap endp
 
 ends
 end start
