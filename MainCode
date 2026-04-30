@@ -1,0 +1,58 @@
+data segment
+    uniid db "20230632$"  
+    uniid2 db "20258275$"
+    row db 6 dup(?)  
+    col db 6 dup(?)
+ends
+
+stack segment
+    dw 128 dup(0)
+ends
+
+code segment
+start:
+    mov ax, data
+    mov ds, ax
+
+    lea si, uniid
+    add si, 7
+    lea di, col
+    call obst
+
+    lea si, uniid
+    add si, 6
+    lea di, row
+    call obst
+
+    lea si, uniid2
+    add si, 7
+    lea di, col 
+    add di,3 
+    call obst
+
+    lea si, uniid2
+    add si, 6
+    lea di, row 
+    add di,3 
+    call obst
+
+    mov ax, 4c00h
+    int 21h
+
+obst proc
+    mov cx, 3
+l1: 
+    mov al, [si]
+    sub al, 30H
+    xor ah, ah
+    mov bl, 8
+    div bl
+    mov [di], ah
+    sub si, 2
+    add di, 1
+    loop l1
+    ret
+obst endp
+
+ends
+end start
