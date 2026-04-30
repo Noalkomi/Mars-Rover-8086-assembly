@@ -1,9 +1,35 @@
 data segment
-    uniid db "20230632"  
-    uniid2 db "20258275$"
-    row db 6 dup(?)  
-    col db 6 dup(?)
-    grid db 64 dup('.')
+    uniid    db 8 dup(0)
+    uniid2   db 8 dup(0)
+    row      db 6 dup(?)
+    col      db 6 dup(?)
+    grid     db 64 dup('.')
+    fuel     db 20
+    fuelused db 0
+    rrow     db 0
+    rcol     db 0
+    nrow     db 0
+    ncol     db 0
+    seqbuf   db 20 dup(0)
+    seqlen   db 0
+    msg1     db "MARS ROVER NAVIGATION SYSTEM", 13, 10, "$"
+    msg2     db "Enter Student ID 1 (8 digits): $"
+    msg3     db "Enter Student ID 2 (8 digits): $"
+    msg4     db "Legend: [R]=Rover  [O]=Crater  [.]=Empty", 13, 10, "$"
+    msg5     db "Battery Level: 20 Units", 13, 10, "$"
+    msg6     db "Enter moves (U,D,L,R stop with invalid): $"
+    msg7     db "Executing: $"
+    msg8     db "Error: Boundary breach!", 13, 10, "$"
+    msg9     db "CRITICAL FAILURE!", 13, 10, "$"
+    msg10    db "Rover crashed at coordinates ($"
+    msg11    db "Mission Aborted.", 13, 10, "$"
+    msg12    db "Goodbye!", 13, 10, "$"
+    msg13    db "MISSION SUCCESS!", 13, 10, "$"
+    msg14    db "Rover reached coordinates: ($"
+    msg15    db "Fuel Consumed: $"
+    msg16    db "Remaining Battery Level: $"
+    msg17    db " Units", 13, 10, "$"
+    msg18    db 13, 10, "$"
 ends
 
 stack segment
@@ -15,67 +41,429 @@ start:
     mov ax, data
     mov ds, ax
 
+    call clrscr
+    lea dx, msg1
+    call printmsg
+
+    lea dx, msg2
+    call printmsg
+    lea si, uniid
+    call readid
+
+    lea dx, msg3
+    call printmsg
+    lea si, uniid2
+    call readid
+
     lea si, uniid
     add si, 7
     lea di, col
     call obst
-
     lea si, uniid
     add si, 6
     lea di, row
     call obst
-
     lea si, uniid2
     add si, 7
-    lea di, col 
-    add di,3 
+    lea di, col
+    add di, 3
     call obst
-
     lea si, uniid2
     add si, 6
-    lea di, row 
-    add di,3 
+    lea di, row
+    add di, 3
     call obst
-    
-    
-    mov cx, 6           
-    xor bx, bx    
-         
-  gen_craters:
+
+    mov cx, 6
+    xor bx, bx
+gen_craters:
     push cx
+    push bx
     lea si, row
     mov al, [si+bx]
     xor ah, ah
     mov cl, 8
     mul cl
+    pop bx
+    push bx
     lea si, col
     add al, [si+bx]
     xor ah, ah
     mov dx, ax
-    lea di, grid
-    add di, dx
-    mov ax, ds
-    mov es, ax
-    mov es:[di], 'O'
+    lea bx, grid
+    add bx, dx
+    mov [bx], 'O'
+    pop bx
     inc bx
     pop cx
     loop gen_craters
-    lea si, grid
-    mov bx, 0
-find_r: cmp [si+bx], 'O'
+
+    lea bx, grid
+find_r:
+    cmp [bx], 'O'
     je shift
-    mov [si+bx], 'R'
-    jmp done
-shift: inc bx
+    mov [bx], 'R'
+    mov rrow, 0
+    mov al, 0
+    mov rcol, al
+    jmp init_done
+shift:
+    inc bx
     jmp find_r
-done: call dispgri
-    mov ax, 4C00h
+
+init_done:
+    call clrscr
+    lea dx, msg1
+    call printmsg
+    lea dx, msg18
+    call printmsg
+    call dispgri
+    lea dx, msg4
+    call printmsg
+    lea dx, msg5
+    call printmsg
+
+get_input:
+    lea dx, msg6
+    call printmsg
+    xor bx, bx
+read_seq:
+    mov ah, 01h
     int 21h
+    cmp al, 'U'
+    je seq_ok
+    cmp al, 'u'
+    je seq_ok
+    cmp al, 'D'
+    je seq_ok
+    cmp al, 'd'
+    je seq_ok
+    cmp al, 'L'
+    je seq_ok
+    cmp al, 'l'
+    je seq_ok
+    cmp al, 'R'
+    je seq_ok
+    cmp al, 'r'
+    je seq_ok
+    jmp seq_stop
+seq_ok:
+    lea si, seqbuf
+    mov [si+bx], al
+    inc bx
+    cmp bx, 20
+    jl read_seq
+seq_stop:
+    mov seqlen, bl
+    lea dx, msg18
+    call printmsg
+    cmp bl, 0
+    je get_input
+
+    call showscreen
+
+    xor bx, bx
+exec_loop:
+    cmp bl, seqlen
+    je seq_done
+
+    lea si, seqbuf
+    mov al, [si+bx]
+    push bx
+
+    cmp al, 'U'
+    je do_up
+    cmp al, 'u'
+    je do_up
+    cmp al, 'D'
+    je do_down
+    cmp al, 'd'
+    je do_down
+    cmp al, 'L'
+    je do_left
+    cmp al, 'l'
+    je do_left
+    jmp do_right
+
+do_up:
+    mov al, rrow
+    cmp al, 0
+    je boundary
+    dec al
+    mov nrow, al
+    mov al, rcol
+    mov ncol, al
+    jmp check_move
+
+do_down:
+    mov al, rrow
+    cmp al, 7
+    je boundary
+    inc al
+    mov nrow, al
+    mov al, rcol
+    mov ncol, al
+    jmp check_move
+
+do_left:
+    mov al, rrow
+    mov nrow, al
+    mov al, rcol
+    cmp al, 0
+    je boundary
+    dec al
+    mov ncol, al
+    jmp check_move
+
+do_right:
+    mov al, rrow
+    mov nrow, al
+    mov al, rcol
+    cmp al, 7
+    je boundary
+    inc al
+    mov ncol, al
+
+check_move:
+    mov al, nrow
+    mov bl, ncol
+    xor ah, ah
+    mov cl, 8
+    mul cl
+    xor bh, bh
+    add ax, bx
+    mov bx, ax
+    lea si, grid
+    add si, bx
+    cmp [si], 'O'
+    je collision
+
+    mov al, rrow
+    xor ah, ah
+    mov cl, 8
+    mul cl
+    xor ah, ah
+    add al, rcol
+    mov bx, ax
+    lea si, grid
+    add si, bx
+    mov [si], '.'
+
+    mov al, nrow
+    mov rrow, al
+    mov al, ncol
+    mov rcol, al
+
+    mov al, nrow
+    mov bl, ncol
+    xor ah, ah
+    mov cl, 8
+    mul cl
+    xor bh, bh
+    add ax, bx
+    mov bx, ax
+    lea si, grid
+    add si, bx
+    mov [si], 'R'
+
+    dec fuel
+    inc fuelused
+
+    call delay
+    call showscreen
+
+    pop bx
+    inc bx
+    jmp exec_loop
+
+boundary:
+    pop bx
+    call clrscr
+    lea dx, msg1
+    call printmsg
+    call dispgri
+    lea dx, msg8
+    call printmsg
+    jmp exit_prog
+
+collision:
+    mov al, nrow
+    mov rrow, al
+    mov al, ncol
+    mov rcol, al
+    mov al, nrow
+    mov bl, ncol
+    xor ah, ah
+    mov cl, 8
+    mul cl
+    xor bh, bh
+    add ax, bx
+    mov bx, ax
+    lea si, grid
+    add si, bx
+    mov [si], 'X'
+    pop bx
+    call clrscr
+    lea dx, msg1
+    call printmsg
+    call dispgri
+    mov dl, 07h
+    mov ah, 02h
+    int 21h
+    lea dx, msg9
+    call printmsg
+    lea dx, msg10
+    call printmsg
+    call printcoord
+    lea dx, msg18
+    call printmsg
+    lea dx, msg11
+    call printmsg
+    jmp exit_prog
+
+seq_done:
+    call clrscr
+    lea dx, msg1
+    call printmsg
+    call dispgri
+    lea dx, msg13
+    call printmsg
+    lea dx, msg14
+    call printmsg
+    call printcoord
+    lea dx, msg18
+    call printmsg
+    lea dx, msg15
+    call printmsg
+    mov al, fuelused
+    call printnum
+    lea dx, msg18
+    call printmsg
+    lea dx, msg16
+    call printmsg
+    mov al, fuel
+    call printnum
+    lea dx, msg17
+    call printmsg
+
+exit_prog:
+    lea dx, msg12
+    call printmsg
+    mov ax, 4c00h
+    int 21h
+
+printmsg proc
+    mov ah, 09h
+    int 21h
+    ret
+printmsg endp
+
+readid proc
+    mov cx, 8
+ridloop:
+    mov ah, 01h
+    int 21h
+    mov [si], al
+    inc si
+    loop ridloop
+    lea dx, msg18
+    call printmsg
+    ret
+readid endp
+
+printcoord proc
+    mov al, rrow
+    call printnum
+    mov dl, ','
+    mov ah, 02h
+    int 21h
+    mov al, rcol
+    call printnum
+    mov dl, ')'
+    mov ah, 02h
+    int 21h
+    ret
+printcoord endp
+
+showscreen proc
+    call clrscr
+    lea dx, msg1
+    call printmsg
+    lea dx, msg18
+    call printmsg
+    lea dx, msg7
+    call printmsg
+    push bx
+    xor bx, bx
+showloop:
+    cmp bl, seqlen
+    je showdone
+    lea si, seqbuf
+    mov dl, [si+bx]
+    mov ah, 02h
+    int 21h
+    mov dl, ' '
+    int 21h
+    inc bx
+    jmp showloop
+showdone:
+    pop bx
+    lea dx, msg18
+    call printmsg
+    lea dx, msg18
+    call printmsg
+    call dispgri
+    ret
+showscreen endp
+
+printnum proc
+    xor ah, ah
+    mov bl, 10
+    div bl
+    cmp al, 0
+    je skip_tens
+    push ax
+    mov dl, al
+    add dl, 30h
+    mov ah, 02h
+    int 21h
+    pop ax
+skip_tens:
+    mov dl, ah
+    add dl, 30h
+    mov ah, 02h
+    int 21h
+    ret
+printnum endp
+
+clrscr proc
+    mov ax, 0600h
+    mov bh, 07h
+    mov cx, 0000h
+    mov dx, 184fh
+    int 10h
+    mov ah, 02h
+    mov bh, 0
+    mov dx, 0000h
+    int 10h
+    ret
+clrscr endp
+
+delay proc
+    mov cx, 0020h
+dly:
+    nop
+    nop
+    nop
+    loop dly
+    ret
+delay endp
+
 obst proc
     mov cx, 3
-l1: 
+l1:
     mov al, [si]
-    sub al, 30H
+    sub al, 30h
     xor ah, ah
     mov bl, 8
     div bl
@@ -85,7 +473,6 @@ l1:
     loop l1
     ret
 obst endp
-
 
 dispgri proc
     mov dl, ' '
@@ -137,7 +524,6 @@ lo2:
     jl lo1
     ret
 dispgri endp
-  
-  
+
 ends
 end start
