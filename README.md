@@ -1,23 +1,26 @@
-Mars Rover Navigation System 
-Overview: A DOS assembly program that simulates navigating a rover across an 8×8 grid on Mars, with craters as obstacles.
+🚀 Mars Rover Navigation System
 
-Setup Phase
+A DOS Assembly program that simulates navigating a rover across an 8×8 Martian grid, where hidden craters act as obstacles.
 
-Prompts for two 8-digit student IDs
-Uses digits from those IDs to mathematically generate 6 crater positions on the grid
-Places the rover (R) at the first crater-free cell starting from the top-left
-
-Gameplay
-
-Displays the grid with a 20-unit fuel/battery limit
-Player enters a sequence of moves (U/D/L/R, up to 20)
-Moves execute one by one with a screen refresh each step
-
-Outcomes
-
-Boundary breach — rover tries to leave the 8×8 grid → error message, program ends
-Collision — rover hits a crater (O) → cell becomes X, beep sounds, crash coordinates printed, program ends
-Success — all moves complete without incident → final coordinates, fuel used, and remaining battery are displayed
-
-Key Procedures
-ProcedurePurposeobstDerives crater coordinates from student ID digitsdispgriRenders the 8×8 grid to screenshowscreenRefreshes full display during move executionprintcoordPrints rover's current row/colprintnumConverts a byte value to decimal digits for display
+🛠️ Setup Phase
+Prompts the user to enter two 8-digit student IDs
+Uses the digits to algorithmically generate 6 crater positions
+Places the rover (R) at the first available crater-free cell starting from the top-left corner
+🎮 Gameplay
+Displays an 8×8 grid with a fixed battery limit of 20 units
+The player inputs a sequence of moves (U, D, L, R) — up to 20 steps
+Moves are executed one at a time, with the screen refreshing after each step
+⚠️ Possible Outcomes
+Boundary Breach
+The rover attempts to leave the grid → error message is displayed and the program terminates
+Collision
+The rover hits a crater (O) → the cell changes to X, a beep is triggered, and crash coordinates are shown before exiting
+Successful Navigation
+All moves are executed safely → final coordinates, fuel consumption, and remaining battery are displayed
+🔧 Core Procedures
+Procedure	Description
+obst	Generates crater coordinates from student ID digits
+dispgri	Renders the 8×8 grid
+showscreen	Refreshes the display after each move
+printcoord	Outputs the rover’s current position
+printnum	Converts a byte value into decimal for display
