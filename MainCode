@@ -1,8 +1,9 @@
 data segment
-    uniid db "20230632$"  
+    uniid db "20230632"  
     uniid2 db "20258275$"
     row db 6 dup(?)  
     col db 6 dup(?)
+    grid db 64 dup('.')
 ends
 
 stack segment
@@ -35,10 +36,41 @@ start:
     lea di, row 
     add di,3 
     call obst
-
-    mov ax, 4c00h
+    
+    
+    mov cx, 6           
+    xor bx, bx    
+         
+  gen_craters:
+    push cx
+    lea si, row
+    mov al, [si+bx]
+    xor ah, ah
+    mov cl, 8
+    mul cl
+    lea si, col
+    add al, [si+bx]
+    xor ah, ah
+    mov dx, ax
+    lea di, grid
+    add di, dx
+    mov ax, ds
+    mov es, ax
+    mov es:[di], 'O'
+    inc bx
+    pop cx
+    loop gen_craters
+    lea si, grid
+    mov bx, 0
+find_r: cmp [si+bx], 'O'
+    je shift
+    mov [si+bx], 'R'
+    jmp done
+shift: inc bx
+    jmp find_r
+done: call dispgri
+    mov ax, 4C00h
     int 21h
-
 obst proc
     mov cx, 3
 l1: 
@@ -54,5 +86,58 @@ l1:
     ret
 obst endp
 
+
+dispgri proc
+    mov dl, ' '
+    mov ah, 02h
+    int 21h
+    mov dl, ' '
+    int 21h
+    mov bx, 0
+print_col:
+    mov dl, bl
+    add dl, 30h
+    mov ah, 02h
+    int 21h
+    mov dl, ' '
+    int 21h
+    inc bx
+    cmp bx, 8
+    jl print_col
+    mov dl, 13
+    mov ah, 02h
+    int 21h
+    mov dl, 10
+    int 21h
+    lea si, grid
+    mov bx, 0
+lo1:
+    mov dl, bl
+    add dl, 30h
+    mov ah, 02h
+    int 21h
+    mov dl, ' '
+    int 21h
+    mov cx, 8
+lo2:
+    mov dl, [si]
+    mov ah, 02h
+    int 21h
+    mov dl, ' '
+    int 21h
+    inc si
+    loop lo2
+    mov dl, 13
+    mov ah, 02h
+    int 21h
+    mov dl, 10
+    int 21h
+    inc bx
+    cmp bx, 8
+    jl lo1
+    ret
+dispgri endp
+  
+  
 ends
 end start
